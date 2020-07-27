@@ -1,0 +1,17 @@
+1. Required Packages: 
+
+numpy, matplotlib, pandas, umap-learn
+
+2. Required Data Files: 
+
+genelevel_rsem_expectedcounts_byrid_nooutliers.counts.matrix.tsv
+
+batchcorrected_log2cpm.tsv
+
+train_genelevel_90%.tsv
+
+meta_retina.csv
+
+3. Default Data Path: 
+
+Data/

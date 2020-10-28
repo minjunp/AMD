@@ -2,11 +2,11 @@
 We developed machine learning models (Multinomial Lasso regression, XGboost, Random Forest) to predict distinct stages of age-related macular degeneration (AMD).
 You can find our final report:
 ```
-Final-Report.pdf
+Final_Report.pdf
 ```
-and proposal for this project:
+and presentations used for showcase:
 ```
-Proposal.pdf
+showcase_presentation.pdf
 ```
 
 ### Due to the massive size of the data, datasets needed to run the code are available at:

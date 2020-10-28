@@ -1,0 +1,222 @@
+---
+title: "Multinomial Lasso Regression with Lasso Model traning/testing, confusion matrix"
+author: "Minjun Park"
+date: "5/6/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+# Install missing packages
+```{r}
+list.of.packages <- c("glmnet", "qpcR", "caret", "DMwR", "e1071")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+```
+
+```{r}
+m <- "./D2K_BCM_DATASET/4kensembled.tsv"
+dat <- read.csv(m, sep='\t', header = TRUE)
+library(glmnet)
+library(qpcR)
+library(caret)
+library(DMwR)
+library(e1071)
+```
+
+```{r}
+#See how many times they overlap
+amddata <- dat[2:4440]
+
+amddata <- as.matrix(amddata)
+
+## set seed
+set.seed(1)
+
+amddata <- as.data.frame(amddata)
+table(amddata[1])
+amddata$mgs_level <- factor(amddata$mgs_level)
+balanced_data <-SMOTE(mgs_level ~ ., amddata, perc.over = 350, perc.under = 400)
+#table(balanced_data[1])
+#balanced_data
+
+X_amddata <- as.matrix(balanced_data[,2:4439])
+#X_amddata <- as.matrix(amddata[,2:4439])
+y <- balanced_data[,1]
+#y <- amddata[,1]
+y <- factor(y)
+
+kfolds <- 10
+amddata <- amddata[sample(nrow(amddata)),] #this shuffles the training data
+folds <- cut(seq(1,nrow(amddata)),breaks=kfolds,labels=FALSE) #this creates k folds on training data
+folds
+
+# get lambda min from cv function
+cv.lasso <- cv.glmnet(X_amddata, y, family = "multinomial", alpha = 1, nlambda = 100, nfolds = 10)
+cv.lasso$lambda.min
+
+#balanced_data
+#table(balanced_data[1])
+
+tot <- c()
+s1_var_names <- c()
+s2_var_names <- c()
+s3_var_names <- c()
+s4_var_names <- c()
+true_num <- c()
+false_num <- c()
+true_val <- c()
+pred_val <- c()
+
+
+for(i in 1:kfolds){
+  set.seed(i)
+  t_ind <- which(folds==i,arr.ind=TRUE) #this segments the data by fold  
+  ivalid <- amddata[t_ind, ] #this selects fold i for cv test  
+  itrain <- amddata[-t_ind, ] #this selects remaining k-1 folds for cv train 
+  
+  # use smote to balance data
+  #itrain <- as.data.frame(itrain)
+  #itrain$mgs_level <- factor(itrain$mgs_level)
+  #itrain <- SMOTE(mgs_level ~ ., itrain)
+  
+  end <- length(itrain)
+  
+  X <- itrain[,2:end]
+  X <- as.matrix(X)
+  y <- itrain[,1]
+  y <- factor(y)
+
+  # fit glmnet code using itrain  
+  fitlasso <- glmnet(X, y, family="multinomial", alpha=1, lambda = cv.lasso$lambda.min, type.multinomial = "ungrouped")
+  
+  # record vars with non-zero coeff  
+  # get column names to extract nonzero coefficients
+  coln <- colnames(X)
+  
+  coeff_glm <- coef(fitlasso)
+  coeff_s1 <- coeff_glm[1]
+  coeff_s2 <- coeff_glm[2]
+  coeff_s3 <- coeff_glm[3]
+  coeff_s4 <- coeff_glm[4]
+  
+  # get the indeces
+  vec_s1 <- coeff_s1[["1"]]@i
+  vec_s2 <- coeff_s2[["2"]]@i
+  vec_s3 <- coeff_s3[["3"]]@i
+  vec_s4 <- coeff_s4[["4"]]@i
+  
+  # get the name of genes 
+  vars_s1 <- coln[vec_s1]
+  s1_var_names <- append(s1_var_names, vars_s1)
+  vars_s2 <- coln[vec_s2]
+  s2_var_names <- append(s2_var_names, vars_s2)
+  vars_s3 <- coln[vec_s3]
+  s3_var_names <- append(s3_var_names, vars_s3)
+  vars_s4 <- coln[vec_s4]
+  s4_var_names <- append(s4_var_names, vars_s4)
+  
+  # predict using ivalid and save ivalid predictions
+  true <- ivalid[,1]
+  ivalid <- as.data.frame(ivalid)
+  
+  ivalid_x <- as.matrix(ivalid[,2:end])
+  #sample <- ivalid[,2:end]
+  pred <- predict(fitlasso, ivalid_x, s ="lambda.min", type ="class")
+
+  # to get the F1 score
+  true_val <- append(true_val, true)
+  pred_val <- append(pred_val, pred)
+    
+  # count how many true predictions there are
+  count_true = 0
+  count_false = 0
+  for (i in c(1:length(true))){
+    if (true[i] == pred[i]){
+      count_true = count_true + 1
+    }
+    else {count_false = count_false + 1}
+  }
+  true_num <- append(true_num, count_true)
+  false_num <- append(false_num, count_false)
+
+  
+  # rbind to save non-zero coeff from all 10 folds
+  comb <- qpcR:::cbind.na(true, pred)
+  tot <- qpcR:::cbind.na(tot, comb)
+}
+```
+
+```{r}
+true_val
+pred_val <- as.numeric(pred_val)
+pred_val
+t_fac <- factor(true_val)
+p_fac <- factor(pred_val)
+
+confusionMatrix(p_fac, t_fac)
+```
+
+# Apply model on test set
+```{r}
+a <- "/Users/minjunp/Documents/rice/glmnet/4ktestdata.tsv"
+testdat <- read.csv(a, sep='\t', header=TRUE)
+testdat <- testdat[,3:4441]
+
+end <- length(testdat)
+
+X_test <- testdat[,2:end]
+X_test <- as.matrix(X_test)
+y <- testdat[,1]
+y <- factor(y)
+
+end <- length(amddata)
+X_train <- amddata[,2:end]
+X_train <- as.matrix(X_train)
+y_train <- amddata[,1]
+y_train <- factor(y_train)
+fitlasso <- glmnet(X_train, y_train, family="multinomial", alpha=1, lambda = cv.lasso$lambda.min, 
+                     type.multinomial = "ungrouped")
+pred <- predict(fitlasso, X_test, s ="lambda.min", type ="class")
+
+count_true = 0
+count_false = 0
+for (i in c(1:length(true))){
+  if (true[i] == pred[i]){
+    count_true = count_true + 1
+  }
+  else {count_false = count_false + 1}
+}
+y
+paste(as.character(pred), collapse=", ")
+pred <- as.factor(pred)
+
+```
+
+## Save genes that are selected by the model that appear at least 5 times
+```{r}
+s1_var_name <- as.data.frame(table(s1_var_names))
+s2_var_name <- as.data.frame(table(s2_var_names))
+s3_var_name <- as.data.frame(table(s3_var_names))
+s4_var_name <- as.data.frame(table(s4_var_names))
+
+new_s1_table <- s1_var_name[which(s1_var_name["Freq"] > 5),]
+new_s2_table <- s2_var_name[which(s2_var_name["Freq"] > 5),]
+new_s3_table <- s3_var_name[which(s3_var_name["Freq"] > 5),]
+new_s4_table <- s4_var_name[which(s4_var_name["Freq"] > 5),]
+
+new_s1_table
+new_s2_table
+new_s3_table
+new_s4_table
+```
+
+## Save genes selected -- uncomment if you want to save it as csv files
+```{r}
+#write.csv(s1_var_name,"./4k_stage1_genes.csv")
+#write.csv(s2_var_name,"./4k_stage2_genes.csv")
+#write.csv(s3_var_name,"./4k_stage3_genes.csv")
+#write.csv(s4_var_name,"./4k_stage4_genes.csv")
+
+#comb <- qpcR:::cbind.na(s1_var_name, s2_var_name, s3_var_name, s4_var_name)
+#write.csv(comb,"./4k_stages_combined_genes.csv")
+```

@@ -1,3 +1,14 @@
+# Inferring genomic signature in Age Macular Degeneration (AMD)
+We developed machine learning models (Multinomial Lasso regression, XGboost, Random Forest) to predict distinct stages of age-related macular degeneration (AMD).
+You can find our final report:
+```
+Final_Report.pdf
+```
+and presentations used for showcase:
+```
+showcase_presentation.pdf
+```
+
 ### Due to the massive size of the data, datasets needed to run the code are available at:
 https://rice.box.com/s/lvuwn3g8e4az5kua2y1qz3drmkgnhq9t
 Please download the data in folder: D2K_BCM_DATASET
